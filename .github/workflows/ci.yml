@@ -1,0 +1,28 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['7.4', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+      - name: Lint
+        run: find ea-gcal-sync tests -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Unit testy
+        run: php tests/unit.php
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: WordPress 6.7.5 + ACF
+        run: tests/e2e/run.sh 6.7.5

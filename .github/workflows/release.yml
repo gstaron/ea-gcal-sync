@@ -1,0 +1,47 @@
+# Vydanie novej verzie (dá sa celé z tabletu):
+# GitHub → Releases → Draft a new release → nový tag napr. v0.2.0 → Publish.
+# Workflow doplní verziu a repo do pluginu, zbalí ea-gcal-sync.zip a pripojí ho k release.
+# WordPress potom sám ukáže „Je dostupná nová verzia“.
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+
+      - name: Unit testy
+        run: php tests/unit.php
+
+      - name: Verzia z tagu a repo pre aktualizácie
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag musí mať tvar v1.2.3, je: $GITHUB_REF_NAME"; exit 1
+          fi
+          FILE=ea-gcal-sync/ea-gcal-sync.php
+          sed -i -E "s/^( \* Version:[[:space:]]+).*/\1${VERSION}/" "$FILE"
+          sed -i -E "s/define\('EAGS_VERSION', '[^']*'\)/define('EAGS_VERSION', '${VERSION}')/" "$FILE"
+          sed -i "s#define('EAGS_GITHUB_REPO', '')#define('EAGS_GITHUB_REPO', '${GITHUB_REPOSITORY}')#" "$FILE"
+          grep -q "define('EAGS_VERSION', '${VERSION}')" "$FILE"
+          grep -q "define('EAGS_GITHUB_REPO', '${GITHUB_REPOSITORY}')" "$FILE"
+          php -l "$FILE"
+
+      - name: ZIP
+        run: zip -r ea-gcal-sync.zip ea-gcal-sync
+
+      - name: Pripojiť k release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" ea-gcal-sync.zip --clobber
